@@ -2,7 +2,7 @@
 
 # config
 
-TIMEOUT=30 # 1/10 s
+TIMEOUT=50 # 1/10 s
 TLE=""
 WSTAT=""
 be_end() {
@@ -39,14 +39,24 @@ test_header() {
 	# printf "%5s: %s" "[   ]" "$TEST_TEXT"
 }
 
+print_mode() {
+	FILE="$1"
+	test -f "$FILE" && ls -l "$FILE" | awk '{print $1}'
+}
+
+BLUE='\e[36m'
+GREN='\e[32m'
+RED='\e[31m'
+YELO='\e[33m'
+CL='\e[m'
 print_log() {
 	printf "exit-status: $WSTAT\n"
 	if [ -f "$INFILE" ]; then
-		echo "infile: mode: $(ls -l "$INFILE" | awk '{print $1}')"
+		printf "$BLUE%b$CL - %s\n" "$(print_mode "$INFILE")" "infile:"
 		cat "$INFILE"
 	fi
 	if [ -f "$OUTFILE" ]; then
-		echo "outfile: mode: $(ls -l "$OUTFILE" | awk '{print $1}')"
+		printf "$BLUE%b$CL - %s\n" "$(print_mode "$OUTFILE")" "outfile: "
 		cat "$OUTFILE"
 	fi
 	echo "stderr:"
@@ -58,13 +68,13 @@ print_log() {
 validate_test() {
 	TEST_STAT="$?"
 	if [ -n "$TLE" ]; then
-		printf "\n%5s: %s\n" "[TLE]" "$TEST_TEXT"
+		printf "\n$YELO%5s$CL: %s\n" "[TLE]" "$TEST_TEXT"
 		print_log
 	elif [ $TEST_STAT -ne 0 ]; then
-		printf "\n%5s: %s\n" "[NG]" "$TEST_TEXT"
+		printf "\n$RED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
 		print_log
 	else
-		printf "%5s" "[OK]"
+		printf "$GREN%5s$CL" "[OK]"
 	fi
 }
 
@@ -72,10 +82,15 @@ ERRFILE="$(mktemp)"
 unlink "$ERRFILE"
 INFILE="$(mktemp)"
 unlink "$INFILE"
+INFILE="$INFILE-infile"
 OUTFILE="$(mktemp)"
 unlink "$OUTFILE"
+OUTFILE="$OUTFILE-infile"
 STDOUTFILE="$(mktemp)"
 unlink "$STDOUTFILE"
+
+printf "infile: %s\n" "$INFILE"
+printf "outfile: %s\n" "$OUTFILE"
 
 # Tests
 
@@ -142,5 +157,281 @@ validate_test $(
 	grep "coredump" "$ERRFILE" && exit 1
 	exit 0
 )
+
+#
+# test 4 argument
+#
+ABS_CAT="$(which cat)"
+
+test_header "mandatory: must be runnable for absolute path"
+rm -f "$INFILE" "$OUTFILE"
+echo 'Hello fork' > "$INFILE"
+./pipex "$INFILE" "$ABS_CAT" "$ABS_CAT" "$OUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -ne 0 && exit 1
+	exit 0
+)
+
+test_header "mandatory: must be (infile = outfile)"
+rm -f "$INFILE" "$OUTFILE"
+echo 'Hello fork' > "$INFILE"
+ABS_CAT="$(which cat)"
+./pipex "$INFILE" "$ABS_CAT" "$ABS_CAT" "$OUTFILE" & be_end
+validate_test $(
+	diff "$INFILE" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to implement path resolution"
+rm -f "$INFILE" "$OUTFILE"
+echo 'Hello fork' > "$INFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" & be_end
+validate_test $(
+	diff "$INFILE" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to resolve current directory before PATH"
+rm -f "$INFILE" "$OUTFILE"
+cp $(which yes) cat
+touch "$INFILE"
+./pipex "$INFILE" "./cat" "head" "$OUTFILE" & be_end
+validate_test $(
+	yes | head | diff /dev/fd/0 "$OUTFILE" || exit 1
+	exit 0
+)
+unlink cat
+
+test_header "mandatory: have to be able to use option."
+rm -f "$INFILE" "$OUTFILE"
+echo "" > "$INFILE"
+./pipex "$INFILE" "cat" "cat -e" "$OUTFILE" & be_end
+validate_test $(
+	grep -E '^\$$' "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to exit 3 secound.(you may not use fork)(1)"
+rm -f "$INFILE" "$OUTFILE"
+echo "" > "$INFILE"
+start=$(date +%s)
+./pipex "$INFILE" "sleep 2" "sleep 3" "$OUTFILE" & be_end
+end=$(date +%s)
+validate_test $(
+	if [ "$(expr $end - $start)" -eq 3 ]; then
+		exit 0
+	else
+		exit 1
+	fi
+	exit 0
+)
+
+test_header "mandatory: have to exit 3 secound.(you may not use fork)(2)"
+rm -f "$INFILE" "$OUTFILE"
+echo "" > "$INFILE"
+start=$(date +%s)
+./pipex "$INFILE" "sleep 3" "sleep 2" "$OUTFILE" & be_end
+end=$(date +%s)
+validate_test $(
+	if [ "$(expr $end - $start)" -eq 3 ]; then
+		exit 0
+	else
+		exit 1
+	fi
+	exit 0
+)
+
+#
+# exit statuses
+#
+test_header "mandatory: have to set exit-status 127 when 'No such file or directory'(1)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "./no_file" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 127 || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to set exit-status 127 when 'No such file or directory'(2)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "./no_file" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 127 || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to set exit-status 126 when found but not executable. (1)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "./$INFILE" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 126 || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to set exit-status 126 when found but not executable. (2)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "./$INFILE" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 126 || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to set exit-status 1 when infile found but not access."
+rm -f "$INFILE" "$OUTFILE"
+touch "$OUTFILE"
+chmod 000 "$OUTFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 1 || exit 1
+	exit 0
+)
+chmod u+w "$OUTFILE"
+
+test_header "mandatory: have to set exit-status 0 when succeed last command.(1)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "wefoij" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to set exit-status 0 when succeed last command.(2)"
+rm -f "$INFILE" "$OUTFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+
+#
+# outfile permissions
+#
+test_header "mandatory: have to open the file after fork so exists outfile (infile-outfile)."
+rm -f "$INFILE" "$OUTFILE"
+./pipex "$INFILE" "wefoij" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test -f "$OUTFILE" || exit 1
+	exit 0
+)
+
+umask 022
+test_header "mandatory: outfile must be permission 644 when umask 022."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	print_mode "$OUTFILE" | grep '\-rw-r--r--' || exit 1
+	exit 0
+)
+test -f "$OUTFILE" && chmod u+w "$OUTFILE"
+umask 022
+
+umask 000
+test_header "mandatory: outfile must be permission 666 when umask 000."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	print_mode "$OUTFILE" | grep '\-rw-rw-rw-' || exit 1
+	exit 0
+)
+test -f "$OUTFILE" && chmod u+w "$OUTFILE"
+umask 022
+
+umask 777
+test_header "mandatory: outfile must be permission 000 when umask 777."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	print_mode "$OUTFILE" | grep '\----------' || exit 1
+	exit 0
+)
+umask 022
+test -f "$INFILE" && chmod u+w "$INFILE"
+test -f "$OUTFILE" && chmod u+w "$OUTFILE"
+
+# Error print
+
+test_header "mandatory - sub: have to print error 'No such file or directory' when not found infile."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "./no_file" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep "No such file or directory" "$ERRFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory - sub: have to print error 'command not found' when not found command (1)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "./no_file" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep "command not found" "$ERRFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory - sub: have to print error 'command not found' when not found command (2)"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "./no_file" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep "command not found" "$ERRFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory - sub: have to print error 'permission denied' when not accessable infile."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+chmod 000 "$INFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
+	exit 0
+)
+chmod u+w "$INFILE"
+
+test_header "mandatory - sub: have to print error 'permission denied' when not accessable command.(1)"
+rm -f "$INFILE" "$OUTFILE"
+cp $ABS_CAT cotable
+touch "$INFILE"
+chmod 000 cotable
+./pipex "$INFILE" "./cotable" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
+	exit 0
+)
+chmod u+w "cotable" ; rm -f cotable
+
+test_header "mandatory - sub: have to print error 'permission denied' when not accessable command.(2)"
+rm -f "$INFILE" "$OUTFILE"
+cp $ABS_CAT cotable
+touch "$INFILE"
+chmod 000 cotable
+./pipex "$INFILE" "cat" "./cotable" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
+	exit 0
+)
+chmod u+w "cotable" ; rm -f cotable
+
+test_header "mandatory - sub: have to print error 'permission denied' when not accessable outfile."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+touch "$OUTFILE"
+chmod 000 "$OUTFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
+	exit 0
+)
+chmod u+w "$OUTFILE"
+
+rm -f "$INFILE" "$OUTFILE"
 
 echo ""
