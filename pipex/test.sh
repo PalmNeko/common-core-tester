@@ -432,6 +432,57 @@ validate_test $(
 )
 chmod u+w "$OUTFILE"
 
+#
+# bonus
+#
+test_header "bonus: must be able to use more command."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+./pipex "$INFILE" "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+
+test_header "bonus: must be able to use here_doc."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+echo "test\nEOF\n" ./pipex "$INFILE" "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+
+test_header "bonus: you have to pipe with every fork and close pipe fds."
+rm -f "$INFILE" "$OUTFILE"
+NOW_ULIMIT="$(ulimit -n)"
+ulimit -n 30 || (echo 'please up hardlimit for file descriptor' ; exit 1)
+touch "$INFILE"
+./pipex "$INFILE" \
+  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
+  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
+  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
+  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
+  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
+    "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+# ulimit -n "$NOW_ULIMIT" # not permitted.
+
+echo 'bonus: you have to test here doc yourself. list below.'
+echo 'ex: pipex here_doc EOF cat cat outfile'
+echo ' > E O F'
+echo ' > [space]EOF'
+echo ' > EOF[space]'
+echo '...'
+echo ' > EOF'
+echo 'check outfile permission'
+echo 'check outfile permission when append. must not overwrite.'
+echo 'check outfile data.'
+
+
 rm -f "$INFILE" "$OUTFILE"
 
 echo ""
