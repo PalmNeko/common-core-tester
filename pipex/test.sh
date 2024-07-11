@@ -46,7 +46,7 @@ print_mode() {
 
 BLUE='\e[36m'
 GREN='\e[32m'
-RED='\e[31m'
+REED='\e[31m'
 YELO='\e[33m'
 CL='\e[m'
 print_log() {
@@ -65,16 +65,24 @@ print_log() {
 	cat "$STDOUTFILE"
 }
 
+TEST_COUNT=0
+TEST_SUCSS=0
+TEST_FAIL=0
+TEST_TLE=0
 validate_test() {
 	TEST_STAT="$?"
+TEST_COUNT="$(expr "$TEST_COUNT" + 1)"
 	if [ -n "$TLE" ]; then
 		printf "\n$YELO%5s$CL: %s\n" "[TLE]" "$TEST_TEXT"
 		print_log
+TEST_TLE="$(expr "$TEST_TLE" + 1)"
 	elif [ $TEST_STAT -ne 0 ]; then
-		printf "\n$RED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
+		printf "\n$REED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
 		print_log
+TEST_FAIL="$(expr "$TEST_FAIL" + 1)"
 	else
 		printf "$GREN%5s$CL" "[OK]"
+TEST_SUCSS="$(expr "$TEST_SUCSS" + 1)"
 	fi
 }
 
@@ -508,6 +516,18 @@ echo 'check outfile permission'
 echo 'check outfile permission when append. must not overwrite.'
 echo 'check outfile data.'
 
+echo
+printf "repoting.\r"
+sleep 0.8
+printf "repoting..\r"
+sleep 0.9
+echo "repoting..."
+sleep 1
+echo
+printf "TOTAL %-5s ... $TEST_COUNT\n" "TEST"
+printf "Total $YELO%-5s$CL  ... $TEST_TLE\n" "TLE"
+printf "Total $REED%-5s$CL  ... $TEST_FAIL\n" "NG"
+printf "Total $GREN%-5s$CL  ... $TEST_SUCSS\n" "OK"
 
 rm -f "$INFILE" "$OUTFILE"
 
