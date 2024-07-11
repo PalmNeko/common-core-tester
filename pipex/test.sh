@@ -211,14 +211,14 @@ validate_test $(
 	exit 0
 )
 
-test_header "mandatory: have to exit 3 secound.(you may not use fork)(1)"
+test_header "mandatory: have to exit 2 secound.(you may not use fork)(1)"
 rm -f "$INFILE" "$OUTFILE"
 echo "" > "$INFILE"
 start=$(date +%s)
-./pipex "$INFILE" "sleep 2" "sleep 3" "$OUTFILE" & be_end
+./pipex "$INFILE" "sleep 1" "sleep 2" "$OUTFILE" & be_end
 end=$(date +%s)
 validate_test $(
-	if [ "$(expr $end - $start)" -eq 3 ]; then
+	if [ "$(expr $end - $start)" -eq 2 ]; then
 		exit 0
 	else
 		exit 1
@@ -226,14 +226,14 @@ validate_test $(
 	exit 0
 )
 
-test_header "mandatory: have to exit 3 secound.(you may not use fork)(2)"
+test_header "mandatory: have to exit 2 secound.(you may not use fork)(2)"
 rm -f "$INFILE" "$OUTFILE"
 echo "" > "$INFILE"
 start=$(date +%s)
-./pipex "$INFILE" "sleep 3" "sleep 2" "$OUTFILE" & be_end
+./pipex "$INFILE" "sleep 2" "sleep 1" "$OUTFILE" & be_end
 end=$(date +%s)
 validate_test $(
-	if [ "$(expr $end - $start)" -eq 3 ]; then
+	if [ "$(expr $end - $start)" -eq 2 ]; then
 		exit 0
 	else
 		exit 1
