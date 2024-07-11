@@ -415,6 +415,35 @@ validate_test $(
 chmod u+w "$OUTFILE"
 
 #
+# PATH tests
+#
+DUP_PATH="$PATH"
+test_header "mandatory - sub: have to not print 'No such file or directory' when unsetted PATH"
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+unset PATH
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
+export PATH="$DUP_PATH"
+be_end
+validate_test $(
+	grep -e "No such file or directory" "$ERRFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory - sub: have to not print 'No such file or directory' when PATH length is 0."
+rm -f "$INFILE" "$OUTFILE"
+touch "$INFILE"
+unset PATH
+export PATH=""
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
+export PATH="$DUP_PATH"
+be_end
+validate_test $(
+	grep -e "No such file or directory" "$ERRFILE" || exit 1
+	exit 0
+)
+
+#
 # bonus
 #
 test_header "bonus: must be able to use more command."
