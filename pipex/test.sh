@@ -453,6 +453,7 @@ validate_test $(
 )
 # ulimit -n "$NOW_ULIMIT" # not permitted.
 
+echo
 echo 'bonus: you have to test here doc yourself. list below.'
 echo 'ex: pipex here_doc EOF cat cat outfile'
 echo ' > E O F'
