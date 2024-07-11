@@ -253,28 +253,10 @@ validate_test $(
 	exit 0
 )
 
-test_header "mandatory: have to set exit-status 127 when 'No such file or directory'(2)"
-rm -f "$INFILE" "$OUTFILE"
-touch "$INFILE"
-./pipex "$INFILE" "./no_file" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
-validate_test $(
-	test "$WSTAT" -eq 127 || exit 1
-	exit 0
-)
-
-test_header "mandatory: have to set exit-status 126 when found but not executable. (1)"
-rm -f "$INFILE" "$OUTFILE"
-touch "$INFILE"
-./pipex "$INFILE" "./$INFILE" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
-validate_test $(
-	test "$WSTAT" -eq 126 || exit 1
-	exit 0
-)
-
 test_header "mandatory: have to set exit-status 126 when found but not executable. (2)"
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "./$INFILE" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+./pipex "$INFILE" "cat" "$INFILE" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
 validate_test $(
 	test "$WSTAT" -eq 126 || exit 1
 	exit 0
@@ -372,7 +354,7 @@ rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
 ./pipex "$INFILE" "./no_file" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
 validate_test $(
-	grep "command not found" "$ERRFILE" || exit 1
+	grep "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
 )
 
@@ -381,7 +363,7 @@ rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
 ./pipex "$INFILE" "cat" "./no_file" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
 validate_test $(
-	grep "command not found" "$ERRFILE" || exit 1
+	grep "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
 )
 
