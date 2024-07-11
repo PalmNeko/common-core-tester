@@ -206,6 +206,16 @@ validate_test $(
 )
 unlink cat
 
+test_header "mandatory: have to resolve parent directory before PATH"
+rm -f "$INFILE" "$OUTFILE"
+BIG_PARENT_YES="../../../../../../../../../../../../../../../../../../../../../../$(which yes)"
+touch "$INFILE"
+./pipex "$INFILE" "$BIG_PARENT_YES" "head" "$OUTFILE" & be_end
+validate_test $(
+	yes | head | diff /dev/fd/0 "$OUTFILE" || exit 1
+	exit 0
+)
+
 test_header "mandatory: have to be able to use option."
 rm -f "$INFILE" "$OUTFILE"
 echo "" > "$INFILE"
