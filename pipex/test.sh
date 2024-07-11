@@ -94,6 +94,10 @@ printf "outfile: %s\n" "$OUTFILE"
 
 # Tests
 
+! make && echo "must compile with make" && exit 1
+
+! test -f ./pipex && echo "No such file or directory: pipex" && exit 1
+
 test_header "mandatory: unexpected param (please check yourself)"
 rm -f "$INFILE" "$OUTFILE"
 nm -u pipex | 2> "$ERRFILE" > "$STDOUTFILE" grep -v \
