@@ -540,7 +540,7 @@ sleep 0.9
 echo "repoting..."
 sleep 1
 echo
-printf "TOTAL %-5s ... $TEST_COUNT\n" "TEST"
+printf "TOTAL %-5s  ... $TEST_COUNT\n" "TEST"
 printf "Total $YELO%-5s$CL  ... $TEST_TLE\n" "TLE"
 printf "Total $REED%-5s$CL  ... $TEST_FAIL\n" "NG"
 printf "Total $GREN%-5s$CL  ... $TEST_SUCSS\n" "OK"
