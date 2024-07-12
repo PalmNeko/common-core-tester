@@ -76,14 +76,18 @@ validate_test() {
 		printf "\n$YELO%5s$CL: %s\n" "[TLE]" "$TEST_TEXT"
 		print_log
 		TEST_TLE="$(expr "$TEST_TLE" + 1)"
+		return 1
 	elif [ $TEST_STAT -ne 0 ]; then
 		printf "\n$REED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
 		print_log
 		TEST_FAIL="$(expr "$TEST_FAIL" + 1)"
+		return 2
 	else
 		printf "$GREN%5s$CL" "[OK]"
 		TEST_SUCSS="$(expr "$TEST_SUCSS" + 1)"
+		return 0
 	fi
+	return 0
 }
 
 ERRFILE="$(mktemp)"
@@ -103,10 +107,10 @@ printf "outfile: %s\n" "$OUTFILE"
 # Tests
 
 test_header "must compile with make"
-validate_test $(make)
+validate_test $(make) || exit 1
 
 test_header "No such file or directory: pipex"
-validate_test $(test -f ./pipex)
+validate_test $(test -f ./pipex) || exit 1
 
 test_header "mandatory: unexpected param (please check yourself)"
 rm -f "$INFILE" "$OUTFILE"
