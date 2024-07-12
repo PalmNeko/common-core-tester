@@ -205,6 +205,16 @@ validate_test $(
 	exit 0
 )
 
+test_header "mandatory: have to truncate outfile"
+rm -f "$INFILE" "$OUTFILE"
+echo "Nick Hello" > "$OUTFILE"
+echo "Fits Hello" > "$INFILE"
+./pipex "$INFILE" "cat" "cat" "$OUTFILE" & be_end
+validate_test $(
+	diff "$INFILE" "$OUTFILE" || exit 1
+	exit 0
+)
+
 test_header "mandatory: have to resolve current directory before PATH"
 rm -f "$INFILE" "$OUTFILE"
 cp $(which yes) cat
