@@ -572,18 +572,6 @@ validate_test $(
 # ulimit -n "$NOW_ULIMIT" # not permitted.
 
 echo
-echo 'bonus: you have to test here doc yourself. list below.'
-echo 'ex: pipex here_doc EOF cat cat outfile'
-echo ' > E O F'
-echo ' > [space]EOF'
-echo ' > EOF[space]'
-echo '...'
-echo ' > EOF'
-echo 'check outfile permission'
-echo 'check outfile permission when append. must not overwrite.'
-echo 'check outfile data.'
-
-echo
 printf "repoting.\r"
 sleep 0.8
 printf "repoting..\r"
