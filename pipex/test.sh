@@ -493,12 +493,63 @@ validate_test $(
 	exit 0
 )
 
+#
+# here doc check
+#
 test_header "bonus: must be able to use here_doc."
 rm -f "$INFILE" "$OUTFILE"
-touch "$INFILE"
-echo "test\nEOF\n" ./pipex "$INFILE" "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+
+test_header "bonus: must be able to be processed by DELIMINATOR\n."
+rm -f "$INFILE" "$OUTFILE"
+echo -ne "test\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	echo -en 'test\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "bonus: must be able to be processed by DELIMINATOR."
+rm -f "$INFILE" "$OUTFILE"
+echo -en "test\nEOF" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	echo -en 'test\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \"E O F\")"
+rm -f "$INFILE" "$OUTFILE"
+echo -ne "test\nE O F\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	echo -ne 'test\nE O F\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \" EOF\")"
+rm -f "$INFILE" "$OUTFILE"
+echo -ne "test\n EOF\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	echo -ne 'test\n EOF\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \"EOF \")"
+rm -f "$INFILE" "$OUTFILE"
+echo -ne "test\nEOF \nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	echo -ne 'test\nEOF \n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "bonus: must be append"
+rm -f "$INFILE" "$OUTFILE"
+echo "Hello" > "$OUTFILE"
+echo -ne "test\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+validate_test $(
+	echo -ne 'Hello\ntest\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
 )
 
