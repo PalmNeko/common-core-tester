@@ -5,12 +5,8 @@
 TIMEOUT=50 # 1/10 s
 TLE=""
 WSTAT=""
-be_end() {
-	TLE=false
-	PID="$!"
-	WSTAT=""
-	RET=""
-	TLE=""
+is_timeout() {
+	PID="$1"
 	ITER="$TIMEOUT"
 	while [ "$ITER" -gt 0 ]; do
 		ps -p $PID > /dev/null || break
@@ -18,6 +14,19 @@ be_end() {
 		ITER="$(expr "$ITER" - 1)"
 	done
 	if ps -p $PID > /dev/null; then
+		return true
+	else
+		return false
+	fi
+	return true
+}
+
+be_end() {
+	PID="$!"
+	WSTAT=""
+	RET=""
+	TLE=""
+	if is_timeout "$PID"; then
 		kill $PID
 		TLE="TLE"
 		RET=1
@@ -27,6 +36,26 @@ be_end() {
 	wait $PID
 	WSTAT="$?"
 	return $RET
+}
+
+IS_LEAK=""
+LEAK_LOG="$(mkdir -p .)"
+LEAK_STDERR="$(mkdir -p .)"
+run_test() {
+	PROG="$1"
+	shift
+	valgrind \
+		--log-file="$LEAK_LOG"
+		--leak-check=full \
+		--leak-resolution=high \
+		--show-reachable=yes \
+		"$PROG" "$@" > /dev/null 2> /dev/null &
+	PID="$!"
+	if is_timeout "$!"; then
+		kill "$PID"
+	fi
+	"$PROG" "$@" 2> "$ERRFILE" > "$STDOUTFILE" &
+	be_end
 }
 
 TEST_TEXT=""
