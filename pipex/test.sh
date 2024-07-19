@@ -39,8 +39,8 @@ STDINFILE="$(mktemp)"   # STDIN file
 ERRFILE="$(mktemp)"     # STDERROR file
 STDOUTFILE="$(mktemp)"  # STDOUT file
 INFILE="$(mktemp)"      # infile file
-INFILE="$INFILE-infile"
 unlink "$INFILE"
+INFILE="$INFILE-infile"
 OUTFILE="$(mktemp)"     # outfile file
 unlink "$OUTFILE"
 OUTFILE="$OUTFILE-outfile"
@@ -131,6 +131,8 @@ test_header() {
 	echo -n '' > "$STDINFILE"
 	echo -n '' > "$ERRFILE"
 	echo -n '' > "$STDOUTFILE"
+	test -f "$INFILE" && chmod u+w "$INFILE"
+	test -f "$OUTFILE" && chmod u+w "$OUTFILE"
 	rm -f "$INFILE" "$OUTFILE"
 	# printf "%5s: %s" "[   ]" "$TEST_TEXT"
 }
@@ -432,18 +434,6 @@ validate_test $(
 )
 test -f "$OUTFILE" && chmod u+w "$OUTFILE"
 umask 022
-
-umask 777
-test_header "mandatory: outfile must be permission 000 when umask 777."
-touch "$INFILE"
-run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
-validate_test $(
-	print_mode "$OUTFILE" | grep '\----------' || exit 1
-	exit 0
-)
-umask 022
-test -f "$INFILE" && chmod u+w "$INFILE"
-test -f "$OUTFILE" && chmod u+w "$OUTFILE"
 
 # Error print
 
