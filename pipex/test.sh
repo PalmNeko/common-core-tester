@@ -21,8 +21,10 @@ is_timeout() {
 	return 1
 }
 
+PIPEX_PID=""
 be_end() {
 	PID="$!"
+	PIPEX_PID="$PID"
 	WSTAT=""
 	RET=""
 	TLE=""
@@ -39,7 +41,9 @@ be_end() {
 }
 
 IS_LEAK=""
+TEST_CMD=""
 run_test() {
+	TEST_CMD="$*"
 	PROG="$1"
 	IS_LEAK=""
 	shift
@@ -95,9 +99,12 @@ GREN='\e[32m'
 REED='\e[31m'
 YELO='\e[33m'
 MAGE='\e[35m'
+BLAK='\e[30m'
 CL='\e[m'
 print_log() {
-	printf "exit-status: $WSTAT\n"
+	printf "test command: $TEST_CMD\n"
+	printf "pipex pid   : $PIPEX_PID\n"
+	printf "exit-status : $WSTAT\n"
 	if [ -f "$INFILE" ]; then
 		printf "$BLUE%b$CL - %s\n" "$(print_mode "$INFILE")" "infile:"
 		cat "$INFILE"
@@ -106,10 +113,12 @@ print_log() {
 		printf "$BLUE%b$CL - %s\n" "$(print_mode "$OUTFILE")" "outfile: "
 		cat "$OUTFILE"
 	fi
-	echo "stderr:"
+	echo "stderr: start ------------------- "
 	cat "$ERRFILE"
-	echo "stdout:"
+	echo -e "$BLAK[EOF]$CL"
+	echo "stdout: > ------------------- "
 	cat "$STDOUTFILE"
+	echo -e "$BLAK[EOF]$CL"
 }
 
 TEST_COUNT=0
@@ -128,15 +137,15 @@ validate_test() {
 	elif [ -n "$IS_LEAK" ]; then
 		printf "\n$MAGE%5s$CL: %s\n" "[LEAK]" "$TEST_TEXT"
 		print_log
-		printf "------- $MAGE%s$CL -------\n" "LEAKS"
+		printf " ------- $MAGE%s$CL -------\n" "LEAKS"
 		cat_leak_log | sed -E 's/(LEAK)/'"\\$MAGE"'\1'"\\$CL"'/g' | xargs --null printf "%b"
 		TEST_LEAK="$(expr "$TEST_LEAK" + 1)"
-		return 1
+		return 2
 	elif [ $TEST_STAT -ne 0 ]; then
 		printf "\n$REED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
 		print_log
 		TEST_FAIL="$(expr "$TEST_FAIL" + 1)"
-		return 2
+		return 3
 	else
 		printf "$GREN%5s$CL" "[OK]"
 		TEST_SUCSS="$(expr "$TEST_SUCSS" + 1)"
@@ -177,7 +186,7 @@ nm -u pipex | 2> "$ERRFILE" > "$STDOUTFILE" grep -v \
 	-e malloc \
 	-e free \
 	-e perror \
-	-e	strerror \
+	-e strerror \
 	-e access \
 	-e dup \
 	-e dup2 \
@@ -206,7 +215,7 @@ validate_test $(
 
 test_header "mandatory: runable 1 param"
 rm -f "$INFILE" "$OUTFILE"
-run_test ""
+run_test ./pipex ""
 validate_test $(
 	test "$WSTAT" -gt 128 && exit 1
 	grep "coredump" "$ERRFILE" && exit 1
@@ -215,7 +224,7 @@ validate_test $(
 
 test_header "mandatory: runable 2 param"
 rm -f "$INFILE" "$OUTFILE"
-./pipex "" "" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "" ""
 validate_test $(
 	test "$WSTAT" -gt 128 && exit 1
 	grep "coredump" "$ERRFILE" && exit 1
@@ -224,7 +233,7 @@ validate_test $(
 
 test_header "mandatory: runable 3 param"
 rm -f "$INFILE" "$OUTFILE"
-./pipex "" "" "" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "" "" ""
 validate_test $(
 	test "$WSTAT" -gt 128 && exit 1
 	grep "coredump" "$ERRFILE" && exit 1
@@ -239,7 +248,7 @@ ABS_CAT="$(which cat)"
 test_header "mandatory: must be runnable for absolute path"
 rm -f "$INFILE" "$OUTFILE"
 echo 'Hello fork' > "$INFILE"
-./pipex "$INFILE" "$ABS_CAT" "$ABS_CAT" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "$ABS_CAT" "$ABS_CAT" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -ne 0 && exit 1
 	exit 0
@@ -249,7 +258,7 @@ test_header "mandatory: must be (infile = outfile)"
 rm -f "$INFILE" "$OUTFILE"
 echo 'Hello fork' > "$INFILE"
 ABS_CAT="$(which cat)"
-./pipex "$INFILE" "$ABS_CAT" "$ABS_CAT" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "$ABS_CAT" "$ABS_CAT" "$OUTFILE"
 validate_test $(
 	diff "$INFILE" "$OUTFILE" || exit 1
 	exit 0
@@ -258,7 +267,7 @@ validate_test $(
 test_header "mandatory: have to implement path resolution"
 rm -f "$INFILE" "$OUTFILE"
 echo 'Hello fork' > "$INFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE" 
 validate_test $(
 	diff "$INFILE" "$OUTFILE" || exit 1
 	exit 0
@@ -268,7 +277,7 @@ test_header "mandatory: have to truncate outfile"
 rm -f "$INFILE" "$OUTFILE"
 echo "Nick Hello" > "$OUTFILE"
 echo "Fits Hello" > "$INFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	diff "$INFILE" "$OUTFILE" || exit 1
 	exit 0
@@ -278,7 +287,7 @@ test_header "mandatory: have to resolve current directory before PATH"
 rm -f "$INFILE" "$OUTFILE"
 cp $(which yes) cat
 touch "$INFILE"
-./pipex "$INFILE" "./cat" "head" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "./cat" "head" "$OUTFILE"
 validate_test $(
 	yes | head | diff /dev/fd/0 "$OUTFILE" || exit 1
 	exit 0
@@ -289,7 +298,7 @@ test_header "mandatory: have to resolve parent directory before PATH"
 rm -f "$INFILE" "$OUTFILE"
 BIG_PARENT_YES="../../../../../../../../../../../../../../../../../../../../../../$(which yes)"
 touch "$INFILE"
-./pipex "$INFILE" "$BIG_PARENT_YES" "head" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "$BIG_PARENT_YES" "head" "$OUTFILE"
 validate_test $(
 	yes | head | diff /dev/fd/0 "$OUTFILE" || exit 1
 	exit 0
@@ -298,7 +307,7 @@ validate_test $(
 test_header "mandatory: have to be able to use option."
 rm -f "$INFILE" "$OUTFILE"
 echo "" > "$INFILE"
-./pipex "$INFILE" "cat" "cat -e" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat -e" "$OUTFILE"
 validate_test $(
 	grep -E '^\$$' "$OUTFILE" || exit 1
 	exit 0
@@ -308,7 +317,7 @@ test_header "mandatory: have to exit 2 secound.(you may not use fork)(1)"
 rm -f "$INFILE" "$OUTFILE"
 echo "" > "$INFILE"
 start=$(date +%s)
-./pipex "$INFILE" "sleep 1" "sleep 2" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "sleep 1" "sleep 2" "$OUTFILE"
 end=$(date +%s)
 validate_test $(
 	if [ "$(expr $end - $start)" -eq 2 ]; then
@@ -323,7 +332,7 @@ test_header "mandatory: have to exit 2 secound.(you may not use fork)(2)"
 rm -f "$INFILE" "$OUTFILE"
 echo "" > "$INFILE"
 start=$(date +%s)
-./pipex "$INFILE" "sleep 2" "sleep 1" "$OUTFILE" & be_end
+run_test ./pipex "$INFILE" "sleep 2" "sleep 1" "$OUTFILE"
 end=$(date +%s)
 validate_test $(
 	if [ "$(expr $end - $start)" -eq 2 ]; then
@@ -340,7 +349,7 @@ validate_test $(
 test_header "mandatory: have to set exit-status 127 when 'No such file or directory'(1)"
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "./no_file" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "./no_file" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 127 || exit 1
 	exit 0
@@ -349,7 +358,7 @@ validate_test $(
 test_header "mandatory: have to set exit-status 126 when found but not executable. (2)"
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "$INFILE" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "$INFILE" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 126 || exit 1
 	exit 0
@@ -359,7 +368,7 @@ test_header "mandatory: have to set exit-status 1 when infile found but not acce
 rm -f "$INFILE" "$OUTFILE"
 touch "$OUTFILE"
 chmod 000 "$OUTFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 1 || exit 1
 	exit 0
@@ -369,7 +378,7 @@ chmod u+w "$OUTFILE"
 test_header "mandatory: have to set exit-status 0 when succeed last command.(1)"
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "wefoij" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "wefoij" "cat" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
 	exit 0
@@ -377,7 +386,7 @@ validate_test $(
 
 test_header "mandatory: have to set exit-status 0 when succeed last command.(2)"
 rm -f "$INFILE" "$OUTFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
 	exit 0
@@ -388,7 +397,7 @@ validate_test $(
 #
 test_header "mandatory: have to open the file after fork so exists outfile (infile-outfile)."
 rm -f "$INFILE" "$OUTFILE"
-./pipex "$INFILE" "wefoij" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "wefoij" "cat" "$OUTFILE"
 validate_test $(
 	test -f "$OUTFILE" || exit 1
 	exit 0
@@ -398,7 +407,7 @@ umask 022
 test_header "mandatory: outfile must be permission 644 when umask 022."
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	print_mode "$OUTFILE" | grep '\-rw-r--r--' || exit 1
 	exit 0
@@ -410,7 +419,7 @@ umask 000
 test_header "mandatory: outfile must be permission 666 when umask 000."
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	print_mode "$OUTFILE" | grep '\-rw-rw-rw-' || exit 1
 	exit 0
@@ -422,7 +431,7 @@ umask 777
 test_header "mandatory: outfile must be permission 000 when umask 777."
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	print_mode "$OUTFILE" | grep '\----------' || exit 1
 	exit 0
@@ -436,7 +445,7 @@ test -f "$OUTFILE" && chmod u+w "$OUTFILE"
 test_header "mandatory - sub: have to print error 'No such file or directory' when not found infile."
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "./no_file" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "./no_file" "cat" "cat" "$OUTFILE"
 validate_test $(
 	grep "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
@@ -445,7 +454,7 @@ validate_test $(
 test_header "mandatory - sub: have to print error 'command not found' when not found command (1)"
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "./no_file" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "./no_file" "cat" "$OUTFILE"
 validate_test $(
 	grep "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
@@ -454,7 +463,7 @@ validate_test $(
 test_header "mandatory - sub: have to print error 'command not found' when not found command (2)"
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "./no_file" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "./no_file" "$OUTFILE"
 validate_test $(
 	grep "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
@@ -464,7 +473,7 @@ test_header "mandatory - sub: have to print error 'permission denied' when not a
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
 chmod 000 "$INFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
 	exit 0
@@ -476,7 +485,7 @@ rm -f "$INFILE" "$OUTFILE"
 cp $ABS_CAT cotable
 touch "$INFILE"
 chmod 000 cotable
-./pipex "$INFILE" "./cotable" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "./cotable" "cat" "$OUTFILE"
 validate_test $(
 	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
 	exit 0
@@ -488,7 +497,7 @@ rm -f "$INFILE" "$OUTFILE"
 cp $ABS_CAT cotable
 touch "$INFILE"
 chmod 000 cotable
-./pipex "$INFILE" "cat" "./cotable" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "./cotable" "$OUTFILE"
 validate_test $(
 	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
 	exit 0
@@ -500,7 +509,7 @@ rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
 touch "$OUTFILE"
 chmod 000 "$OUTFILE"
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 validate_test $(
 	grep -e "permission denied" -e "Permission denied" "$ERRFILE" || exit 1
 	exit 0
@@ -515,7 +524,7 @@ test_header "mandatory - sub: have to not print 'No such file or directory' when
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
 unset PATH
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 export PATH="$DUP_PATH"
 be_end
 validate_test $(
@@ -528,7 +537,7 @@ rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
 unset PATH
 export PATH=""
-./pipex "$INFILE" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
+run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 export PATH="$DUP_PATH"
 be_end
 validate_test $(
@@ -542,7 +551,7 @@ validate_test $(
 test_header "bonus: must be able to use more command."
 rm -f "$INFILE" "$OUTFILE"
 touch "$INFILE"
-./pipex "$INFILE" "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex "$INFILE" "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
 	exit 0
@@ -553,7 +562,7 @@ validate_test $(
 #
 test_header "bonus: must be able to use here_doc."
 rm -f "$INFILE" "$OUTFILE"
-echo -ne "test\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
 	exit 0
@@ -561,7 +570,7 @@ validate_test $(
 
 test_header "bonus: must be able to be processed by DELIMINATOR\n."
 rm -f "$INFILE" "$OUTFILE"
-echo -ne "test\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -en 'test\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -569,7 +578,7 @@ validate_test $(
 
 test_header "bonus: must be able to be processed by DELIMINATOR."
 rm -f "$INFILE" "$OUTFILE"
-echo -en "test\nEOF" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -en "test\nEOF" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -en 'test\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -577,7 +586,7 @@ validate_test $(
 
 test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \"E O F\")"
 rm -f "$INFILE" "$OUTFILE"
-echo -ne "test\nE O F\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\nE O F\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'test\nE O F\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -585,7 +594,7 @@ validate_test $(
 
 test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \" EOF\")"
 rm -f "$INFILE" "$OUTFILE"
-echo -ne "test\n EOF\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\n EOF\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'test\n EOF\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -593,7 +602,7 @@ validate_test $(
 
 test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \"EOF \")"
 rm -f "$INFILE" "$OUTFILE"
-echo -ne "test\nEOF \nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\nEOF \nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'test\nEOF \n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -602,7 +611,7 @@ validate_test $(
 test_header "bonus: must be append"
 rm -f "$INFILE" "$OUTFILE"
 echo "Hello" > "$OUTFILE"
-echo -ne "test\nEOF\n" | ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+echo -ne "test\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'Hello\ntest\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -613,7 +622,7 @@ rm -f "$INFILE" "$OUTFILE"
 NOW_ULIMIT="$(ulimit -n)"
 ulimit -n 30 || (echo 'please up hardlimit for file descriptor' ; exit 1)
 touch "$INFILE"
-./pipex "$INFILE" \
+run_test ./pipex "$INFILE" \
   "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
   "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
   "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
@@ -636,6 +645,7 @@ sleep 1
 echo
 printf "TOTAL %-5s  ... $TEST_COUNT\n" "TEST"
 printf "Total $YELO%-5s$CL  ... $TEST_TLE\n" "TLE"
+printf "Total $MAGE%-5s$CL  ... $TEST_LEAK\n" "LEAK"
 printf "Total $REED%-5s$CL  ... $TEST_FAIL\n" "NG"
 printf "Total $GREN%-5s$CL  ... $TEST_SUCSS\n" "OK"
 
