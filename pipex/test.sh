@@ -1,10 +1,41 @@
 #!/usr/bin/bash
 
 # config
-
 TIMEOUT=50 # 1/10 s
+# for logging
+TEST_TEXT=""
 TLE=""
 WSTAT=""
+PIPEX_PID=""
+IS_LEAK=""
+TEST_CMD=""
+# for reporting
+TEST_COUNT=0
+TEST_SUCSS=0
+TEST_FAIL=0
+TEST_TLE=0
+TEST_LEAK=0
+# colors
+BLUE='\e[36m'
+GREN='\e[32m'
+REED='\e[31m'
+YELO='\e[33m'
+MAGE='\e[35m'
+BLAK='\e[30m'
+CL='\e[m'
+# absolute_commands
+ABS_CAT="$(which cat)"
+
+# files
+ERRFILE="$(mktemp)"     # STDERROR file
+STDOUTFILE="$(mktemp)"  # STDOUT file
+INFILE="$(mktemp)"      # infile file
+INFILE="$INFILE-infile"
+unlink "$INFILE"
+OUTFILE="$(mktemp)"     # outfile file
+unlink "$OUTFILE"
+OUTFILE="$OUTFILE-outfile"
+
 is_timeout() {
 	PID="$1"
 	ITER="$TIMEOUT"
@@ -21,7 +52,6 @@ is_timeout() {
 	return 1
 }
 
-PIPEX_PID=""
 be_end() {
 	PID="$!"
 	PIPEX_PID="$PID"
@@ -40,8 +70,6 @@ be_end() {
 	return $RET
 }
 
-IS_LEAK=""
-TEST_CMD=""
 run_test() {
 	TEST_CMD="$*"
 	PROG="$1"
@@ -79,7 +107,6 @@ cat_leak_log() {
 	cat "${LOGS[@]}"
 }
 
-TEST_TEXT=""
 test_header() {
 	TEST_TEXT="$1"
 	echo -n '' > "$ERRFILE"
@@ -94,13 +121,6 @@ print_mode() {
 	test -f "$FILE" && ls -l "$FILE" | awk '{print $1}'
 }
 
-BLUE='\e[36m'
-GREN='\e[32m'
-REED='\e[31m'
-YELO='\e[33m'
-MAGE='\e[35m'
-BLAK='\e[30m'
-CL='\e[m'
 print_log() {
 	printf "test command: $TEST_CMD\n"
 	printf "pipex pid   : $PIPEX_PID\n"
@@ -121,11 +141,6 @@ print_log() {
 	echo -e "$BLAK[EOF]$CL"
 }
 
-TEST_COUNT=0
-TEST_SUCSS=0
-TEST_FAIL=0
-TEST_TLE=0
-TEST_LEAK=0
 validate_test() {
 	TEST_STAT="$?"
 	TEST_COUNT="$(expr "$TEST_COUNT" + 1)"
@@ -153,17 +168,6 @@ validate_test() {
 	fi
 	return 0
 }
-
-ERRFILE="$(mktemp)"
-unlink "$ERRFILE"
-INFILE="$(mktemp)"
-unlink "$INFILE"
-INFILE="$INFILE-infile"
-OUTFILE="$(mktemp)"
-unlink "$OUTFILE"
-OUTFILE="$OUTFILE-infile"
-STDOUTFILE="$(mktemp)"
-unlink "$STDOUTFILE"
 
 printf "infile: %s\n" "$INFILE"
 printf "outfile: %s\n" "$OUTFILE"
@@ -243,8 +247,6 @@ validate_test $(
 #
 # test 4 argument
 #
-ABS_CAT="$(which cat)"
-
 test_header "mandatory: must be runnable for absolute path"
 rm -f "$INFILE" "$OUTFILE"
 echo 'Hello fork' > "$INFILE"
