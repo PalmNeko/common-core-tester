@@ -32,8 +32,10 @@ ABS_TR="$(which tr)"
 ABS_SLEEP="$(which sleep)"
 ABS_EXPR="$(which expr)"
 ABS_VALGRIND="$(which valgrind)"
+ABS_CHMOD="$(which chmod)"
 
 # files
+STDINFILE="$(mktemp)"   # STDIN file
 ERRFILE="$(mktemp)"     # STDERROR file
 STDOUTFILE="$(mktemp)"  # STDOUT file
 INFILE="$(mktemp)"      # infile file
@@ -46,7 +48,7 @@ OUTFILE="$OUTFILE-outfile"
 clean_files() {
 	echo
 	echo 'delete: clean tmpfiles'
-	rm -f "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE"
+	rm -f "$STDINFILE" "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE"
 	clean_leak_log
 }
 
@@ -97,7 +99,7 @@ run_test() {
 		--leak-check=full \
 		--leak-resolution=high \
 		--show-reachable=yes \
-		"$PROG" "$@" 2> "$ERRFILE" > "$STDOUTFILE" &
+		"$PROG" "$@" < "$STDINFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
 	be_end
 	if is_leak; then
 		IS_LEAK="leaks!"
@@ -120,11 +122,13 @@ clean_leak_log() {
 
 cat_leak_log() {
 	LOGS=($("$ABS_FIND" . -type f -name "tmp.memlog-*.log" | "$ABS_TR" '\n' ' '))
+	"$ABS_CHMOD" u+r "${LOGS[@]}"
 	"$ABS_CAT" "${LOGS[@]}"
 }
 
 test_header() {
 	TEST_TEXT="$1"
+	echo -n '' > "$STDINFILE"
 	echo -n '' > "$ERRFILE"
 	echo -n '' > "$STDOUTFILE"
 	rm -f "$INFILE" "$OUTFILE"
@@ -471,7 +475,7 @@ validate_test $(
 chmod u+w "$INFILE"
 
 test_header "mandatory - sub: have to print error 'permission denied' when not accessable command.(1)"
-cp $ABS_CAT cotabl
+cp $ABS_CAT cotable
 touch "$INFILE"
 chmod 000 cotable
 run_test ./pipex "$INFILE" "./cotable" "cat" "$OUTFILE"
@@ -543,42 +547,48 @@ validate_test $(
 # here doc check
 #
 test_header "bonus: must be able to use here_doc."
-echo -ne "test\nEOF\n" | un_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\nEOF\n" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
 	exit 0
 )
 
 test_header "bonus: must be able to be processed by DELIMINATOR\n."
-echo -ne "test\nEOF\n" | un_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\nEOF\n" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -en 'test\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
 )
 
 test_header "bonus: must be able to be processed by DELIMINATOR."
-echo -en "test\nEOF" | ru_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\nEOF" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -en 'test\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
 )
 
 test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \"E O F\")"
-echo -ne "test\nE O F\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\nE O F\nEOF\n" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'test\nE O F\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
 )
 
 test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \" EOF\")"
-echo -ne "test\n EOF\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\n EOF\nEOF\n" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'test\n EOF\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
 )
 
 test_header "bonus: must be processed only when there is an exact match with DELIMINATOR. (check \"EOF \")"
-echo -ne "test\nEOF \nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\nEOF \nEOF\n" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'test\nEOF \n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
@@ -586,7 +596,8 @@ validate_test $(
 
 test_header "bonus: must be append"
 echo "Hello" > "$OUTFILE"
-echo -ne "test\nEOF\n" | run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
+echo -ne "test\nEOF\n" > "$STDINFILE"
+run_test ./pipex here_doc EOF "cat" "cat" "cat" "$OUTFILE"
 validate_test $(
 	echo -ne 'Hello\ntest\n' | diff "/dev/fd/0" "$OUTFILE" || exit 1
 	exit 0
