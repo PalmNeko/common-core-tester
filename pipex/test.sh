@@ -9,6 +9,7 @@ WSTAT=""
 PIPEX_PID=""
 IS_LEAK=""
 TEST_CMD=""
+RUN_TIME=""
 # for reporting
 TEST_COUNT=0
 TEST_SUCSS=0
@@ -33,6 +34,7 @@ ABS_SLEEP="$(which sleep)"
 ABS_EXPR="$(which expr)"
 ABS_VALGRIND="$(which valgrind)"
 ABS_CHMOD="$(which chmod)"
+ABS_TIME="/usr/bin/time"
 
 # files
 STDINFILE="$(mktemp)"   # STDIN file
@@ -44,11 +46,13 @@ INFILE="$INFILE-infile"
 OUTFILE="$(mktemp)"     # outfile file
 unlink "$OUTFILE"
 OUTFILE="$OUTFILE-outfile"
+TIMEFILE="$(mktemp)"    # time file
 
 clean_files() {
 	echo
 	echo 'delete: clean tmpfiles'
-	rm -f "$STDINFILE" "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE"
+	rm -f "$STDINFILE" "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE" "$TIMEFILE"
+	test -f cat && rm -rf cat
 	clean_leak_log
 }
 
@@ -92,15 +96,18 @@ run_test() {
 	TEST_CMD="$*"
 	PROG="$1"
 	IS_LEAK=""
+	RUN_TIME=""
 	shift
 	clean_leak_log
+	"$ABS_TIME" -f '%e' -o "$TIMEFILE" -- \
 	"$ABS_VALGRIND" \
 		--log-file="tmp.memlog-%p.log" \
 		--leak-check=full \
 		--leak-resolution=high \
-		--show-reachable=yes \
+		--show-reachable=no \
 		"$PROG" "$@" < "$STDINFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
 	be_end
+	RUN_TIME="$("$ABS_CAT" "$TIMEFILE" | "$ABS_GREP" -oE '^[[:digit:]]+')"
 	if is_leak; then
 		IS_LEAK="leaks!"
 	fi
@@ -312,7 +319,7 @@ validate_test $(
 	yes | head | diff /dev/fd/0 "$OUTFILE" || exit 1
 	exit 0
 )
-unlink cat
+rm -rf cat
 
 test_header "mandatory: have to resolve parent directory before PATH"
 BIG_PARENT_YES="../../../../../../../../../../../../../../../../../../../../../../$(which yes)"
@@ -333,11 +340,9 @@ validate_test $(
 
 test_header "mandatory: have to exit 2 secound.(you may not use fork)(1)"
 echo "" > "$INFILE"
-start=$(date +%s)
 run_test ./pipex "$INFILE" "sleep 1" "sleep 2" "$OUTFILE"
-end=$(date +%s)
 validate_test $(
-	if [ "$(expr $end - $start)" -eq 2 ]; then
+	if [ "$RUN_TIME" -eq 2 ]; then
 		exit 0
 	else
 		exit 1
@@ -347,11 +352,9 @@ validate_test $(
 
 test_header "mandatory: have to exit 2 secound.(you may not use fork)(2)"
 echo "" > "$INFILE"
-start=$(date +%s)
 run_test ./pipex "$INFILE" "sleep 2" "sleep 1" "$OUTFILE"
-end=$(date +%s)
 validate_test $(
-	if [ "$(expr $end - $start)" -eq 2 ]; then
+	if [ "$RUN_TIME" -eq 2 ]; then
 		exit 0
 	else
 		exit 1
