@@ -145,17 +145,24 @@ print_log() {
 	printf "pipex pid   : $PIPEX_PID\n"
 	printf "exit-status : $WSTAT\n"
 	if [ -f "$INFILE" ]; then
-		printf "$BLUE%b$CL - %s\n" "$(print_mode "$INFILE")" "infile:"
+		printf "$BLUE%b$CL - %s\n" "$(print_mode "$INFILE")" "infile: ------------------- "
+		chmod u+r "$INFILE"
 		cat "$INFILE"
+		echo -e "$BLAK[EOF]$CL"
 	fi
 	if [ -f "$OUTFILE" ]; then
-		printf "$BLUE%b$CL - %s\n" "$(print_mode "$OUTFILE")" "outfile: "
+		printf "$BLUE%b$CL - %s\n" "$(print_mode "$OUTFILE")" "outfile: ------------------- "
+		chmod u+r "$OUTFILE"
 		cat "$OUTFILE"
+		echo -e "$BLAK[EOF]$CL"
 	fi
-	echo "stderr: start ------------------- "
+	echo "stdin: ------------------- "
+	cat "$STDINFILE"
+	echo -e "$BLAK[EOF]$CL"
+	echo "stderr: ------------------- "
 	cat "$ERRFILE"
 	echo -e "$BLAK[EOF]$CL"
-	echo "stdout: > ------------------- "
+	echo "stdout: ------------------- "
 	cat "$STDOUTFILE"
 	echo -e "$BLAK[EOF]$CL"
 }
