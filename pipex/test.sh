@@ -14,11 +14,11 @@ is_timeout() {
 		ITER="$(expr "$ITER" - 1)"
 	done
 	if ps -p $PID > /dev/null; then
-		return true
+		return 0
 	else
-		return false
+		return 1
 	fi
-	return true
+	return 1
 }
 
 be_end() {
@@ -39,23 +39,40 @@ be_end() {
 }
 
 IS_LEAK=""
-LEAK_LOG="$(mkdir -p .)"
-LEAK_STDERR="$(mkdir -p .)"
 run_test() {
 	PROG="$1"
+	IS_LEAK=""
 	shift
+	clean_leak_log
 	valgrind \
-		--log-file="$LEAK_LOG"
+		--log-file="tmp.memlog-%p.log" \
 		--leak-check=full \
 		--leak-resolution=high \
 		--show-reachable=yes \
-		"$PROG" "$@" > /dev/null 2> /dev/null &
-	PID="$!"
-	if is_timeout "$!"; then
-		kill "$PID"
-	fi
-	"$PROG" "$@" 2> "$ERRFILE" > "$STDOUTFILE" &
+		"$PROG" "$@" 2> "$ERRFILE" > "$STDOUTFILE" &
 	be_end
+	if is_leak; then
+		IS_LEAK="leaks!"
+	fi
+	# read
+}
+
+is_leak() {
+	if cat_leak_log | grep 'LEAK' > /dev/null; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+clean_leak_log() {
+	find . -type f -name "tmp.memlog-*.log" -delete
+	IS_LEAK=""
+}
+
+cat_leak_log() {
+	LOGS=($(find . -type f -name "tmp.memlog-*.log" | tr '\n' ' '))
+	cat "${LOGS[@]}"
 }
 
 TEST_TEXT=""
@@ -77,6 +94,7 @@ BLUE='\e[36m'
 GREN='\e[32m'
 REED='\e[31m'
 YELO='\e[33m'
+MAGE='\e[35m'
 CL='\e[m'
 print_log() {
 	printf "exit-status: $WSTAT\n"
@@ -98,6 +116,7 @@ TEST_COUNT=0
 TEST_SUCSS=0
 TEST_FAIL=0
 TEST_TLE=0
+TEST_LEAK=0
 validate_test() {
 	TEST_STAT="$?"
 	TEST_COUNT="$(expr "$TEST_COUNT" + 1)"
@@ -105,6 +124,13 @@ validate_test() {
 		printf "\n$YELO%5s$CL: %s\n" "[TLE]" "$TEST_TEXT"
 		print_log
 		TEST_TLE="$(expr "$TEST_TLE" + 1)"
+		return 1
+	elif [ -n "$IS_LEAK" ]; then
+		printf "\n$MAGE%5s$CL: %s\n" "[LEAK]" "$TEST_TEXT"
+		print_log
+		printf "------- $MAGE%s$CL -------\n" "LEAKS"
+		cat_leak_log | sed -E 's/(LEAK)/'"\\$MAGE"'\1'"\\$CL"'/g' | xargs --null printf "%b"
+		TEST_LEAK="$(expr "$TEST_LEAK" + 1)"
 		return 1
 	elif [ $TEST_STAT -ne 0 ]; then
 		printf "\n$REED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
@@ -171,7 +197,7 @@ validate_test $(
 
 test_header "mandatory: runable no params"
 rm -f "$INFILE" "$OUTFILE"
-./pipex 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ./pipex
 validate_test $(
 	test "$WSTAT" -gt 128 && exit 1
 	grep "coredump" "$ERRFILE" && exit 1
@@ -180,7 +206,7 @@ validate_test $(
 
 test_header "mandatory: runable 1 param"
 rm -f "$INFILE" "$OUTFILE"
-./pipex "" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+run_test ""
 validate_test $(
 	test "$WSTAT" -gt 128 && exit 1
 	grep "coredump" "$ERRFILE" && exit 1
