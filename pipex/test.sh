@@ -25,6 +25,13 @@ BLAK='\e[30m'
 CL='\e[m'
 # absolute_commands
 ABS_CAT="$(which cat)"
+ABS_FIND="$(which find)"
+ABS_PS="$(which ps)"
+ABS_GREP="$(which grep)"
+ABS_TR="$(which tr)"
+ABS_SLEEP="$(which sleep)"
+ABS_EXPR="$(which expr)"
+ABS_VALGRIND="$(which valgrind)"
 
 # files
 ERRFILE="$(mktemp)"     # STDERROR file
@@ -49,11 +56,11 @@ is_timeout() {
 	PID="$1"
 	ITER="$TIMEOUT"
 	while [ "$ITER" -gt 0 ]; do
-		ps -p $PID > /dev/null || break
-		sleep 0.1
-		ITER="$(expr "$ITER" - 1)"
+		"$ABS_PS" -p $PID > /dev/null || break
+		"$ABS_SLEEP" 0.1
+		ITER="$("$ABS_EXPR" "$ITER" - 1)"
 	done
-	if ps -p $PID > /dev/null; then
+	if "$ABS_PS" -p $PID > /dev/null; then
 		return 0
 	else
 		return 1
@@ -85,7 +92,7 @@ run_test() {
 	IS_LEAK=""
 	shift
 	clean_leak_log
-	valgrind \
+	"$ABS_VALGRIND" \
 		--log-file="tmp.memlog-%p.log" \
 		--leak-check=full \
 		--leak-resolution=high \
@@ -99,7 +106,7 @@ run_test() {
 }
 
 is_leak() {
-	if cat_leak_log | grep 'LEAK' > /dev/null; then
+	if cat_leak_log | "$ABS_GREP" 'LEAK' > /dev/null; then
 		return 0
 	else
 		return 1
@@ -107,13 +114,13 @@ is_leak() {
 }
 
 clean_leak_log() {
-	find . -type f -name "tmp.memlog-*.log" -delete
+	"$ABS_FIND" . -type f -name "tmp.memlog-*.log" -delete
 	IS_LEAK=""
 }
 
 cat_leak_log() {
-	LOGS=($(find . -type f -name "tmp.memlog-*.log" | tr '\n' ' '))
-	cat "${LOGS[@]}"
+	LOGS=($("$ABS_FIND" . -type f -name "tmp.memlog-*.log" | "$ABS_TR" '\n' ' '))
+	"$ABS_CAT" "${LOGS[@]}"
 }
 
 test_header() {
@@ -537,7 +544,6 @@ touch "$INFILE"
 unset PATH
 run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 export PATH="$DUP_PATH"
-be_end
 validate_test $(
 	grep -e "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
@@ -550,7 +556,6 @@ unset PATH
 export PATH=""
 run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
 export PATH="$DUP_PATH"
-be_end
 validate_test $(
 	grep -e "No such file or directory" "$ERRFILE" || exit 1
 	exit 0
@@ -638,8 +643,7 @@ run_test ./pipex "$INFILE" \
   "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
   "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
   "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
-  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" \
-    "$OUTFILE" 2> "$ERRFILE" > "$STDOUTFILE" & be_end
+  "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat" "cat"
 validate_test $(
 	test "$WSTAT" -eq 0 || exit 1
 	exit 0
