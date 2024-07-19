@@ -35,6 +35,8 @@ ABS_EXPR="$(which expr)"
 ABS_VALGRIND="$(which valgrind)"
 ABS_CHMOD="$(which chmod)"
 ABS_TIME="/usr/bin/time"
+ABS_RM="$(which rm)"
+ABS_TEST="$(which test)"
 
 # files
 STDINFILE="$(mktemp)"   # STDIN file
@@ -51,8 +53,8 @@ TIMEFILE="$(mktemp)"    # time file
 clean_files() {
 	echo
 	echo 'delete: clean tmpfiles'
-	rm -f "$STDINFILE" "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE" "$TIMEFILE"
-	test -f cat && rm -rf cat
+	"$ABS_RM" -f "$STDINFILE" "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE" "$TIMEFILE"
+	"$ABS_TEST" -f cat && "$ABS_RM" -rf cat
 	clean_leak_log
 }
 
@@ -149,10 +151,13 @@ print_mode() {
 	test -f "$FILE" && ls -l "$FILE" | awk '{print $1}'
 }
 
-print_log() {
+print_log_brief() {
 	printf "test command: $TEST_CMD\n"
 	printf "pipex pid   : $PIPEX_PID\n"
 	printf "exit-status : $WSTAT\n"
+}
+print_log() {
+	print_log_brief
 	if [ -f "$INFILE" ]; then
 		printf "$BLUE%b$CL - %s\n" "$(print_mode "$INFILE")" "infile: ------------------- "
 		chmod u+r "$INFILE"
@@ -179,29 +184,33 @@ print_log() {
 validate_test() {
 	TEST_STAT="$?"
 	TEST_COUNT="$(expr "$TEST_COUNT" + 1)"
+	RET_STAT=0
 	if [ -n "$TLE" ]; then
 		printf "\n$YELO%5s$CL: %s\n" "[TLE]" "$TEST_TEXT"
 		print_log
 		TEST_TLE="$(expr "$TEST_TLE" + 1)"
-		return 1
-	elif [ -n "$IS_LEAK" ]; then
-		printf "\n$MAGE%5s$CL: %s\n" "[LEAK]" "$TEST_TEXT"
-		print_log
-		printf " ------- $MAGE%s$CL -------\n" "LEAKS"
-		cat_leak_log | sed -E 's/(LEAK)/'"\\$MAGE"'\1'"\\$CL"'/g' | xargs --null printf "%b"
-		TEST_LEAK="$(expr "$TEST_LEAK" + 1)"
-		return 2
+		RET_STAT=1
 	elif [ $TEST_STAT -ne 0 ]; then
 		printf "\n$REED%5s$CL: %s\n" "[NG]" "$TEST_TEXT"
 		print_log
 		TEST_FAIL="$(expr "$TEST_FAIL" + 1)"
-		return 3
+		RET_STAT=2
 	else
 		printf "$GREN%5s$CL" "[OK]"
 		TEST_SUCSS="$(expr "$TEST_SUCSS" + 1)"
-		return 0
+		RET_STAT=0
 	fi
-	return 0
+	if [ -n "$IS_LEAK" ]; then
+		printf "\n$MAGE%5s$CL: %s\n" "[LEAK]" "$TEST_TEXT"
+		if [ "$RET_STAT" -eq 0 ]; then
+			print_log_brief
+		fi
+		printf " ------- $MAGE%s$CL -------\n" "LEAKS"
+		cat_leak_log | sed -E 's/(LEAK)/'"\\$MAGE"'\1'"\\$CL"'/g' | xargs --null printf "%b"
+		TEST_LEAK="$(expr "$TEST_LEAK" + 1)"
+		RET_STAT="$(expr "$RET_STAT" + 10)"
+	fi
+	return "$RET_STAT"
 }
 
 printf "infile: %s\n" "$INFILE"
