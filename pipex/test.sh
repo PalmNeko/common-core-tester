@@ -36,6 +36,15 @@ OUTFILE="$(mktemp)"     # outfile file
 unlink "$OUTFILE"
 OUTFILE="$OUTFILE-outfile"
 
+clean_files() {
+	echo
+	echo 'delete: clean tmpfiles'
+	rm -f "$ERRFILE" "$STDOUTFILE" "$INFILE" "$OUTFILE"
+	clean_leak_log
+}
+
+trap clean_files 0
+
 is_timeout() {
 	PID="$1"
 	ITER="$TIMEOUT"
