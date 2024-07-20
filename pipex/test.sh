@@ -16,7 +16,6 @@ TEST_SUCSS=0
 TEST_FAIL=0
 TEST_TLE=0
 TEST_LEAK=0
-TEST_WEAK=0
 # colors
 BLUE='\e[36m'
 GREN='\e[32m'
@@ -110,25 +109,17 @@ run_test() {
 		--log-file="tmp.memlog-%p.log" \
 		--leak-check=full \
 		--leak-resolution=high \
+		--show-leak-kinds=all \
 		--show-reachable=yes \
+		--errors-for-leak-kinds=all \
 		--error-exitcode="$LEAK_STAT" \
 		"$PROG" "$@" < "$STDINFILE" 2> "$ERRFILE" > "$STDOUTFILE" &
 	be_end
 	RUN_TIME="$("$ABS_CAT" "$TIMEFILE" | "$ABS_GREP" -oE '^[[:digit:]]+')"
 	if [ "$LEAK_STAT" -eq "$WSTAT" ]; then
 		IS_LEAK="leaks!"
-	elif is_leak; then
-		IS_LEAK="weaks!" # some still reachable memory leak. this is weak leak.
 	fi
 	# read
-}
-
-is_leak() {
-	if cat_leak_log | "$ABS_GREP" 'LEAK' > /dev/null; then
-		return 0
-	else
-		return 1
-	fi
 }
 
 clean_leak_log() {
@@ -208,23 +199,16 @@ validate_test() {
 		RET_STAT=0
 	fi
 	if [ "$IS_LEAK" = "leaks!" ]; then
-		printf "\n$MAGE%5s$CL: %s\n" "[LEAK]" "$TEST_TEXT"
+		printf "\n$MAGE%5s$CL" "[LEAK]"
 		if [ "$RET_STAT" -eq 0 ]; then
+			printf ": %s" "$TEST_TEXT"
 			print_log_brief
 		fi
+		printf "\n"
 		printf " ------- $MAGE%s$CL -------\n" "LEAKS"
 		cat_leak_log | sed -E 's/(LEAK)/'"\\$MAGE"'\1'"\\$CL"'/g' | xargs --null printf "%b"
 		TEST_LEAK="$(expr "$TEST_LEAK" + 1)"
 		RET_STAT="$(expr "$RET_STAT" + 10)"
-	elif [ "$IS_LEAK" = "weaks!" ]; then
-		printf "\n$CYAN%5s$CL: %s\n" "[WEAK]" "$TEST_TEXT"
-		if [ "$RET_STAT" -eq 0 ]; then
-			print_log_brief
-		fi
-		printf " ------- $CYAN%s$CL -------\n" "WEAKS"
-		cat_leak_log | sed -E 's/(LEAK)/'"\\$CYAN"'\1'"\\$CL"'/g' | xargs --null printf "%b"
-		TEST_WEAK="$(expr "$TEST_WEAK" + 1)"
-		RET_STAT="$(expr "$RET_STAT" + 20)"
 	fi
 	return "$RET_STAT"
 }
@@ -657,7 +641,6 @@ echo
 printf "TOTAL %-5s  ... $WHIT%s$CL\n" "TEST" "$TEST_COUNT"
 printf "Total $YELO%-5s$CL  ... $WHIT%2s$CL        -> $BLUE%s$CL\n" "TLE" "$TEST_TLE" "Timeout ⏰"
 printf "Total $MAGE%-5s$CL  ... $WHIT%2s$CL        -> $BLUE%s$CL\n" "LEAK" "$TEST_LEAK" "Leak error 💧"
-printf "Total $CYAN%-5s$CL  ... $WHIT%2s$CL        -> $BLUE%s$CL\n" "WEAK" "$TEST_WEAK" "Leak error but don't problem. ex: still reachable 🌱"
 printf "Total $REED%-5s$CL  ... $WHIT%2s$CL        -> $BLUE%s$CL\n" "NG" "$TEST_FAIL" "didn't pass test case ❌"
 printf "Total $GREN%-5s$CL  ... $WHIT%2s$CL        -> $BLUE%s$CL\n" "OK" "$TEST_SUCSS" "pass test case. 👍"
 
