@@ -419,8 +419,17 @@ validate_test $(
 #
 # outfile permissions
 #
-test_header "mandatory: have to open the file after fork so exists outfile (infile-outfile)."
-run_test ./pipex "$INFILE" "wefoij" "cat" "$OUTFILE"
+test_header "mandatory: have to open the file after fork so exists outfile (infile-outfile).(1)"
+rm -f unexisting
+run_test ./pipex "$INFILE" "unexisting" "cat" "$OUTFILE"
+validate_test $(
+	test -f "$OUTFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to open the file after fork so exists outfile (infile-outfile).(2)"
+rm -f unexisting
+run_test ./pipex "$INFILE" "cat" "unexisting" "$OUTFILE"
 validate_test $(
 	test -f "$OUTFILE" || exit 1
 	exit 0
