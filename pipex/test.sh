@@ -303,6 +303,20 @@ validate_test $(
 	exit 0
 )
 
+test_header "mandatory: must be proceed when zero string command.(1)"
+touch "$INFILE"
+run_test ./pipex "$INFILE" "" "cat" "$OUTFILE"
+validate_test $(
+	exit 0
+)
+
+test_header "mandatory: must be proceed when zero string command.(2)"
+touch "$INFILE"
+run_test ./pipex "$INFILE" "cat" "" "$OUTFILE"
+validate_test $(\
+	exit 0
+)
+
 test_header "mandatory: have to implement path resolution"
 echo 'Hello fork' > "$INFILE"
 run_test ./pipex "$INFILE" "cat" "cat" "$OUTFILE"
@@ -416,6 +430,22 @@ validate_test $(
 	exit 0
 )
 
+test_header "mandatory: have to set exit-status 127 when zero string command.(1)"
+touch "$INFILE"
+run_test ./pipex "$INFILE" "cat" "" "$OUTFILE"
+validate_test $(
+	test "$WSTAT" -eq 127 || exit 1
+	exit 0
+)
+
+test_header "mandatory: have to set exit-status 0 when zero string command.(2)"
+touch "$INFILE"
+run_test ./pipex "$INFILE" "" "cat" "$OUTFILE"
+validate_test $(
+	test "$WSTAT" -eq 0 || exit 1
+	exit 0
+)
+
 #
 # outfile permissions
 #
@@ -524,6 +554,22 @@ validate_test $(
 	exit 0
 )
 chmod u+w "$OUTFILE"
+
+test_header "mandatory - sub: have to print error 'command not found' when zero string command.(1)"
+touch "$INFILE"
+run_test ./pipex "$INFILE" "" "cat" "$OUTFILE"
+validate_test $(
+	grep -e "command not found" "$ERRFILE" || exit 1
+	exit 0
+)
+
+test_header "mandatory - sub: have to print error 'command not found' when zero string command.(2)"
+touch "$INFILE"
+run_test ./pipex "$INFILE" "cat" "" "$OUTFILE"
+validate_test $(
+	grep -e "command not found" "$ERRFILE" || exit 1
+	exit 0
+)
 
 #
 # PATH tests
